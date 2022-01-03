@@ -1,6 +1,8 @@
 import rp2
 from machine import Pin
+import time
 
+import uctypes
 import dma
 
 # DMX in C++ with PIO and DMA: https://github.com/jostlowe/Pico-DMX
@@ -38,18 +40,20 @@ def dmx_in():
 # TODO input PIO code doesn't signal the start of frame to the DMA controller, it just locks up until the next transition is detected
 # This will cause problems if the received universe is not the expected length (both too short and too long will be challenging)
 
-@rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False)
+@rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
 def dmx_out():
-    set(x, 21)              .side(0)          # Preload bit counter, assert break condition for 176us 
+    pull()                  .side(1)          # Stall until the DMA transfer begins
+    set(x, 21)              .side(0)          # Preload bit counter, assert break condition for 176us (=22*8*1us)
     label("breakloop")                        # This loop will run 22 times
     jmp(x_dec, "breakloop")             [7]   # Each loop iteration is 8 cycles.
-    nop()                   .side(1)    [7]   # Assert MAB. 8 cycles nop here and 8 cycle stop-bits = 16us
-    wrap_target()                             # Send data frame
-    pull()                  .side(1)    [7]   # Assert 2 stop bits (8us), or stall with line in idle state
+    nop()                   .side(1)    [7]   # Assert MAB. 1+7+1+7 cycles = 16us
+    nop()                               [7]
+    wrap_target()                             # Send data frame - OSR already has the first byte in it from earlier
     set(x, 7)               .side(0)    [3]   # Preload bit counter, assert start bit for 4 clocks
     label("bitloop")                          # This loop will run 8 times (8 data bits)
     out(pins, 1)                              # Shift 1 bit from OSR to the pin
     jmp(x_dec, "bitloop")               [2]   # Each loop iteration is 4 cycles.
+    pull()                  .side(1)    [7]   # Assert 2 stop bits (8us), or stall with line in idle state
     wrap()
 
 class DMX:
@@ -131,7 +135,8 @@ class DMX:
             self._sm = rp2.StateMachine(statemachine, dmx_out, freq=1_000_000, sideset_base=self._pin, out_base=self._pin)
             # TODO - initialise the DMA for transmission
             self._dma = dma.DmaChannel(dmachannel)
-            # self._dma.SetChannelData(uctypes.addressof(self._universe), PIO_TXFIFO, COUNT, TRIGGER)
+            self._dma.NoWriteIncr()
+            self._dma.SetTREQ(0) # TODO - hard coded as PIO0 TX0
 
         else:
             self._pin       = Pin(pin, Pin.IN)
@@ -144,6 +149,7 @@ class DMX:
         
     #def __repr__(self):
         # TODO - encode the class state - including which PIO and DMA channel are in use
+        pass
 
     def __str__(self):
         result = f"Start code: {self._universe[0]}"
@@ -185,12 +191,13 @@ class DMX:
         self._universe[chan] = value
     
     def pause(self):
-        # TODO temporarily disable the DMX PIO state machine
-        pass
+        self._sm.active(0)
+
 
     def start(self):
-        # TODO (re)-start the DMX PIO state machine
-        pass
+        self._sm.active(1)
+        self._sm.restart()
+        self._dma.SetChannelData(uctypes.addressof(self._universe), 0x50200010, self._universe_size +1, True)
 
     @property
     def universe(self):
@@ -204,13 +211,38 @@ class DMX:
 
     @staticmethod
     def test():
-        d = DMX(1, DMX.TX, 20) # 20-channel output universe
+        d = DMX(4, DMX.TX)
 
-        print(d)
+        #print(d)
 
-        d.send(1,128)
-        d.send(20,255)
+        d.send(1,85)
+        d.send(2,64)
+        d.send(3,32)
+        d.send(4,16)
+        d.send(5,8)
+        d.send(6,4)
+        d.send(7,2)
+        d.send(8,1)
+        d.send(10,170)
+        d.send(12,85)
+        d.send(16,250)
+        d.send(17,251)
+        d.send(18,252)
+        d.send(19,253)
+        d.send(20,85)
+        d.send(512,85)
 
-        print(d)
+        #print(d)
 
-        print(d._sm)
+        #print(d._sm)
+
+        for n in range(5):
+            d.start()
+            time.sleep_ms(30)
+        
+        #for n in range(200):
+        #    d._sm.restart()
+        #    d._sm.put(d._universe)
+        #    sleep_ms(20)
+
+        #d.pause()

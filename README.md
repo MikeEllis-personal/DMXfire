@@ -15,6 +15,9 @@ A lot of the hard work is based upon information gleaned from
   * https://forum.micropython.org/viewtopic.php?f=21&t=9697
 * Instructibles articles: https://www.instructables.com/Arbitrary-Wave-Generator-With-the-Raspberry-Pi-Pic/
 
+* WikiPedia DMX page: https://en.wikipedia.org/wiki/DMX512
+* All about DMX: https://erg.abdn.ac.uk/users/gorry/eg3576/DMX-frame.html
+
 
 # DMX control
 
