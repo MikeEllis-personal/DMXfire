@@ -2,7 +2,8 @@ import rp2
 from machine import Pin
 import time
 
-import uctypes
+from uctypes import addressof
+
 import dma
 
 # DMX in C++ with PIO and DMA: https://github.com/jostlowe/Pico-DMX
@@ -28,7 +29,7 @@ def dmx_in():
     wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) 
     wrap_target()
     wait(0, pin, 0)                           # Stall until start bit is asserted
-    set(x, 7)                           [4]   # Preload bit counter, then delay until halfway through
+    set(x, 7)                           [4]   # Load the bit counter - expecting 8 bits, then delay until halfway through
     label("bitloop")
     in_(pins, 1)                              # Shift data bit into ISR
     jmp(x_dec, "bitloop")               [2]   # Loop 8 times, each loop iteration is 4us
@@ -42,18 +43,22 @@ def dmx_in():
 
 @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
 def dmx_out():
-    pull()                  .side(1)          # Stall until the DMA transfer begins
-    set(x, 21)              .side(0)          # Preload bit counter, assert break condition for 176us (=22*8*1us)
-    label("breakloop")                        # This loop will run 22 times
-    jmp(x_dec, "breakloop")             [7]   # Each loop iteration is 8 cycles.
+    pull()                  .side(1)          # Stall with line IDLE until the DMA transfer begins
+    set(x, 21)              .side(0)          # Assert BREAK for 176us (=22*(1+7)us)
+    label("breakloop")                         
+    jmp(x_dec, "breakloop")             [7]    
+
     nop()                   .side(1)    [7]   # Assert MAB. 1+7+1+7 cycles = 16us
     nop()                               [7]
+
     wrap_target()                             # Send data frame - OSR already has the first byte in it from earlier
-    set(x, 7)               .side(0)    [3]   # Preload bit counter, assert start bit for 4 clocks
-    label("bitloop")                          # This loop will run 8 times (8 data bits)
-    out(pins, 1)                              # Shift 1 bit from OSR to the pin
-    jmp(x_dec, "bitloop")               [2]   # Each loop iteration is 4 cycles.
-    pull()                  .side(1)    [7]   # Assert 2 stop bits (8us), or stall with line in idle state
+    set(x, 7)               .side(0)    [3]   # Send START bit (4us) and load the bit counter
+
+    label("bitloop")                          
+    out(pins, 1)                              # Shift 1 bit (4us) from OSR to the line
+    jmp(x_dec, "bitloop")               [2]   
+
+    pull()                  .side(1)    [7]   # Send 2 STOP bits (8us), or stall with line in idle state
     wrap()
 
 class DMX:
@@ -197,7 +202,7 @@ class DMX:
     def start(self):
         self._sm.active(1)
         self._sm.restart()
-        self._dma.SetChannelData(uctypes.addressof(self._universe), 0x50200010, self._universe_size +1, True)
+        self._dma.SetChannelData(addressof(self._universe), 0x50200010, self._universe_size +1, True)
 
     @property
     def universe(self):
