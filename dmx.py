@@ -247,6 +247,7 @@ class DMX:
             time.sleep_ms(500)
         
         t.deinit()
+        
 
         #for n in range(200):
         #    d._sm.restart()
