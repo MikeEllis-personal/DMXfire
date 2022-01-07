@@ -1,5 +1,5 @@
 import rp2
-from machine import Pin
+from machine import Pin, Timer
 import time
 
 from uctypes import addressof
@@ -199,7 +199,7 @@ class DMX:
         self._sm.active(0)
 
 
-    def start(self):
+    def start(self, t):
         self._sm.active(1)
         self._sm.restart()
         self._dma.SetChannelData(addressof(self._universe), 0x50200010, self._universe_size +1, True)
@@ -216,7 +216,8 @@ class DMX:
 
     @staticmethod
     def test():
-        d = DMX(4, DMX.TX)
+        d = DMX(3, DMX.TX)
+        t = Timer(period=50, callback=d.start)
 
         #print(d)
 
@@ -241,10 +242,12 @@ class DMX:
 
         #print(d._sm)
 
-        for n in range(5):
-            d.start()
-            time.sleep_ms(30)
+        for n in range(255):
+            d.send(1,n)
+            time.sleep_ms(500)
         
+        t.deinit()
+
         #for n in range(200):
         #    d._sm.restart()
         #    d._sm.put(d._universe)
