@@ -42,7 +42,7 @@ A DMA channel is set up to copy a bytearray (address automatically incrementing 
 1. PIO then pulls data from the DMA, triggering a DREQ, and sends the stop bits (8us), the start bit (4us), then 8 data bits. 
 1. Upon receipt of the DREQ, DMA sends the next byte to the PIO input FIFO
 1. When the entire Universe has been DMA'd, the DMA raises a processor interrupt
-1. When the DMA interrupt is received, the processor resets the PIO and restarts the DMA 
+1. When the DMA interrupt is received, the processor resets the PIO and restarts the DMA - or maybe a timer would be better, every 25ms?
 
 TODO: Need to make sure that the last few values aren't lost in the FIFO before the PIO has chance to send them
 
@@ -56,7 +56,7 @@ A PIO is constantly watching the DMX input pin. Once a valid Break and MarkAfter
 1. The PIO waits for a one (stop bit), and sends the ISR to the DMA
 1. The PIO then loops back to step 3 - there is no check that the stop bit is the correct length (8us)
 1. The DMA accepts the byte from the PIO and stores it in memory
-1. When the DMA has accepted the correct number of bytes, it triggers a processor interrupt
+1. When the DMA has accepted the correct number of bytes, it triggers a processor interrupt - or should the PIO look for a "break"?
 1. When the DMA interrupt is received, the processors resets the PIO and restarts the DMA
 
 ### Class basics
@@ -67,3 +67,8 @@ It is not possible to check the hardware to see if a DMA channel or PIO statemac
 
 # dma.py
 The Pico port of Micropython doesn't include a DMA controller, hence a very limited one is created using Viper to access memory mapped registers.
+
+Should this be expanded, and include automatic allocation of DMA channels, and neaten up the DReq handling for linking DMA channels to PIO state machines?
+
+# pio.py
+Should there be a wrapper around rp2 which handles PIO allocation automagically?
