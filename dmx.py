@@ -29,11 +29,13 @@ def dmx_in():
     wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) 
     wrap_target()
     wait(0, pin, 0)                           # Stall until start bit is asserted
-    set(x, 7)                           [4]   # Load the bit counter - expecting 8 bits, then delay until halfway through
+                                              # TODO - If it doesn't go low soon, it's the end of the universe - how do we signal thus
+    set(x, 7)                           [4]   # Load the bit counter - expecting 8 bits, then delay until halfway through the first bit
     label("bitloop")
     in_(pins, 1)                              # Shift data bit into ISR
     jmp(x_dec, "bitloop")               [2]   # Loop 8 times, each loop iteration is 4us
     wait(1, pin, 0)                           # Wait for pin to go high for stop bits
+                                              # TODO - if it's doesn't go high soon, it's BREAK - how do we signal this?
     in_(null, 24)                             # Push 24 more bits into the ISR so that our one byte is at the position where the DMA expects it
     push()                                    # Should probably do error checking on the stop bits some time in the future....
     wrap()
@@ -222,12 +224,12 @@ class DMX:
         #print(d)
 
         d.send(1,85)
-        d.send(2,64)
-        d.send(3,32)
-        d.send(4,16)
-        d.send(5,8)
-        d.send(6,4)
-        d.send(7,2)
+        d.send(2, 0b0111_1111)
+        d.send(3, 0b0011_1110)
+        d.send(4, 0b0001_1100)
+        d.send(5, 0b0000_0001)
+        d.send(6, 0b1000_0011)
+        d.send(7, 0b1100_0111)
         d.send(8,1)
         d.send(10,170)
         d.send(12,85)
@@ -242,11 +244,11 @@ class DMX:
 
         #print(d._sm)
 
-        for n in range(255):
+        for n in range(256):
             d.send(1,n)
             time.sleep_ms(500)
         
-        t.deinit()
+        #t.deinit()
 
         #for n in range(200):
         #    d._sm.restart()
