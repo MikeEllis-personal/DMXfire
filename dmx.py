@@ -224,12 +224,12 @@ class DMX:
         #print(d)
 
         d.send(1,85)
-        d.send(2, 0b0111_1111)
-        d.send(3, 0b0011_1110)
-        d.send(4, 0b0001_1100)
-        d.send(5, 0b0000_0001)
-        d.send(6, 0b1000_0011)
-        d.send(7, 0b1100_0111)
+        d.send(2, 0b0111_1111) # Should be L4us  H28us L4us  H8us
+        d.send(3, 0b0011_1110) # Should be L8us  H20us L8us  H8us
+        d.send(4, 0b0001_1100) # Should be L12us H12us L12us H8us
+        d.send(5, 0b0000_0001) # Should be L4us  H4us  L28us H8us
+        d.send(6, 0b1000_0011) # Should be L4us  H8us  L20us H12us
+        d.send(7, 0b1100_0111) # Should be L4us  H12us L12us H16us
         d.send(8,1)
         d.send(10,170)
         d.send(12,85)
