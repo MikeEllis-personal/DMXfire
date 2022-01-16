@@ -24,27 +24,22 @@ import dma
 @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
 #@rp2.asm_pio(fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
 def dmx_in():
-    # DEBUG - shift an F out to sync visual decoding
-    #set(x, 0x0000000f)
-    #mov(isr,x)
-    #push()
-
     # Look for the BREAK - minimum 90us low time
     #set(x, 29)            .side(0)
     label("break_reset")
-    set(x, 29)                                # Setup a counter to count the iterations on break_loop
+    set(x, 29)                 .side(0)               # Setup a counter to count the iterations on break_loop
     label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
     jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
     jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
 
     # Now wait for the mark after break
-    wait(1, pin, 0)                   # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
+    wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
 
     # Now we just need a simple 8N2 UART
     wrap_target()
 
     # Start bit
-    wait(0, pin, 0)        .side(0)                   # Stall until start bit is asserted
+    wait(0, pin, 0)        .side(1)                   # Stall until start bit is asserted
     set(x, 7)                           [4]   # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
 
     # 8 data bits
@@ -57,8 +52,8 @@ def dmx_in():
     #     if we DON'T get a stop bit, the last thing we received was actually the start of the next BREAK - send an IRQ to reset the DMA controller
     #wait(1, pin, 0)                           # Wait for pin to go high for stop bits
     jmp(pin, "got_stopbit")                    # Check to see if we got the stop bit 
-    irq(rel(0))                               # TODO Hard coded as PIO relative IRQ0 at the moment
-    jmp("break_reset")          .side(1)              # No stop bit - must be a BREAK! TODO will need to assert an interrupt here eventually and block
+    irq(block, rel(0))                               # TODO Hard coded as PIO relative IRQ0 at the moment
+    jmp("break_reset")                        # No stop bit - must be a BREAK! TODO will need to assert an interrupt here eventually and block
     
     label("got_stopbit")
     push(noblock)                                    # DMA will read a byte from +3, so no need to shift
@@ -288,7 +283,7 @@ class DMX_RX:
         #    self.channels[chan] = self._sm.get()
 
 def test():
-    dmx_out = DMX_TX(3)
+    dmx_out = DMX_TX(3, 20)
     dmx_out.start()
 
     dmx_out.channels[1]   = 85
@@ -306,7 +301,7 @@ def test():
     dmx_out.channels[18]  = 252
     dmx_out.channels[19]  = 253
     dmx_out.channels[20]  = 85
-    dmx_out.channels[512] = 85
+    #dmx_out.channels[512] = 85
  
     #print(dmx_out)
 
@@ -314,13 +309,15 @@ def test():
     dmx_in  = DMX_RX(7)
     dmx_in.start()
 
+    last_irq_count = dmx_in.irq_count
     for n in range(50):
         dmx_out.channels[1] += 1
         print(f"{dmx_out.channels[1]}:{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(100)
-        print(f"{dmx_in.channels[1]} IRQ {dmx_in.irq_count}...")
-        time.sleep(1)
-
+        time.sleep_ms(400)
+        irq_count = dmx_in.irq_count
+        print(f"{dmx_in.channels[1]} IRQ {irq_count - last_irq_count}...")
+        last_irq_count = irq_count
+        
     #for n in range(256):
     #    dmx_out.send(1,n)
     #    time.sleep_ms(200)
