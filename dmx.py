@@ -30,20 +30,21 @@ def dmx_in():
     #push()
 
     # Look for the BREAK - minimum 90us low time
+    #set(x, 29)            .side(0)
     label("break_reset")
-    set(x, 29)                   .side(1)             # Setup a counter to count the iterations on break_loop
+    set(x, 29)                                # Setup a counter to count the iterations on break_loop
     label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
     jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
     jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
 
     # Now wait for the mark after break
-    wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
+    wait(1, pin, 0)                   # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
 
     # Now we just need a simple 8N2 UART
     wrap_target()
 
     # Start bit
-    wait(0, pin, 0)              .side(0)              # Stall until start bit is asserted
+    wait(0, pin, 0)        .side(0)                   # Stall until start bit is asserted
     set(x, 7)                           [4]   # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
 
     # 8 data bits
@@ -57,10 +58,10 @@ def dmx_in():
     #wait(1, pin, 0)                           # Wait for pin to go high for stop bits
     jmp(pin, "got_stopbit")                    # Check to see if we got the stop bit 
     irq(rel(0))                               # TODO Hard coded as PIO relative IRQ0 at the moment
-    jmp("break_reset")                        # No stop bit - must be a BREAK! TODO will need to assert an interrupt here eventually and block
+    jmp("break_reset")          .side(1)              # No stop bit - must be a BREAK! TODO will need to assert an interrupt here eventually and block
     
     label("got_stopbit")
-    push()                                    # DMA will read a byte from +3, so no need to shift
+    push(noblock)                                    # DMA will read a byte from +3, so no need to shift
     wrap()
 
 # TODO input PIO code doesn't signal the start of frame to the DMA controller, it just locks up until the next transition is detected
@@ -238,6 +239,7 @@ class DMX_RX:
         self._sm = rp2.StateMachine(statemachine, dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin, sideset_base=self._debugpin)
         #self._sm = rp2.StateMachine(statemachine, dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin)
         self._sm.irq(handler=self.IRQ_from_PIO)
+        self.irq_count = 0
         
         self._dma = dma.DmaChannel(dmachannel)
         self._dma.NoReadIncr()
@@ -274,10 +276,9 @@ class DMX_RX:
         self._sm.active(0)
 
     def IRQ_from_PIO(self, sm):
-        print(f"IRQ {sm}")
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
-        self._sm.restart()
-            
+        self.irq_count += 1
+
     def start(self):
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
         self._sm.restart()
@@ -313,34 +314,11 @@ def test():
     dmx_in  = DMX_RX(7)
     dmx_in.start()
 
-    time.sleep_ms(1000)
-    print(dmx_in)
-
-    for n in range(5):
-        print(f"{dmx_out.channels[1]}:{dmx_in.channels[1]}...", end="")
+    for n in range(50):
         dmx_out.channels[1] += 1
-        dmx_in.start()
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(50)
-        print(f"{dmx_in.channels[1]}")
+        print(f"{dmx_out.channels[1]}:{dmx_in.channels[1]}...", end="")
+        time.sleep_ms(100)
+        print(f"{dmx_in.channels[1]} IRQ {dmx_in.irq_count}...")
         time.sleep(1)
 
     #for n in range(256):
