@@ -6,6 +6,27 @@ from uctypes import addressof
 
 import dma
 
+# Interface to a DMX universe for sending using a PIO module.
+
+# Quick theory of operation:
+
+# DMX basics:
+#     DMX data frames comprise a long (90+us) "break" as a logic low, followed by a 16+us "MarkAfterBreak" as a logic high, 
+#     then a series of bytes in 8N2 MSB-first format at 4us/bit. Each data frame is known as a Universe and comprises a 
+#     single-byte Start Code (0 for DMX) followed by between 1 and 512 data bytes, one byte per lighting channel
+
+# Class basics:
+#     Put simply, the class sets up the DMA and PIO and then provides a convenient interface to the bytearray used by the
+#     DMA controller. Setting or reading individual channels is permitted, as is reading/writing the entire Universe. 
+# 
+#     When used as a transmitter, the class uses DMA and PIO to repeatedly send the universe based upon a timer. 
+#     When used as a receiver, each received universe is copied and made available to the user as soon as it is received.
+
+# DMA Channel and PIO allocations:
+#     It is not possible to check the hardware to see if a DMA channel or PIO statemachine is already in use. No extra locking
+#     has been added in this software, thus clashes need to be avoided by the user code.
+
+# Links to original references:
 # DMX in C++ with PIO and DMA: https://github.com/jostlowe/Pico-DMX
 #
 # MicroPython SDK: https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-python-sdk.pdf
@@ -19,90 +40,6 @@ import dma
 #   * https://www.instructables.com/Arbitrary-Wave-Generator-With-the-Raspberry-Pi-Pic/
 #
 # DMX timing: https://support.etcconnect.com/ETC/FAQ/DMX_Speed
-
-
-@rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
-#@rp2.asm_pio(fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
-def dmx_in():
-    # Look for the BREAK - minimum 90us low time
-    #set(x, 29)            .side(0)
-    label("break_reset")
-    set(x, 29)                 .side(0)               # Setup a counter to count the iterations on break_loop
-    label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
-    jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
-    jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
-
-    # Now wait for the mark after break
-    wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
-
-    # Now we just need a simple 8N2 UART
-    wrap_target()
-
-    # Start bit
-    wait(0, pin, 0)        .side(1)                   # Stall until start bit is asserted
-    set(x, 7)                           [4]   # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
-
-    # 8 data bits
-    label("bitloop")
-    in_(pins, 1)                              # Shift data bit into ISR
-    jmp(x_dec, "bitloop")               [2]   # Loop 8 times, each loop iteration is 4us (in + jmp + 2 delay)
-
-    # Look for the stop bit: TODO - not yet implemented correctly
-    #     if we get a stop bit, store the value just received to the RX FIFO and thus trigger a DMA
-    #     if we DON'T get a stop bit, the last thing we received was actually the start of the next BREAK - send an IRQ to reset the DMA controller
-    #wait(1, pin, 0)                           # Wait for pin to go high for stop bits
-    jmp(pin, "got_stopbit")                    # Check to see if we got the stop bit 
-    irq(block, rel(0))                               # TODO Hard coded as PIO relative IRQ0 at the moment
-    jmp("break_reset")                        # No stop bit - must be a BREAK! TODO will need to assert an interrupt here eventually and block
-    
-    label("got_stopbit")
-    push(noblock)                                    # DMA will read a byte from +3, so no need to shift
-    wrap()
-
-# TODO input PIO code doesn't signal the start of frame to the DMA controller, it just locks up until the next transition is detected
-# This will cause problems if the received universe is not the expected length (both too short and too long will be challenging)
-# One option might be to detect the Break, and whilst the break is still present, push() out any missing channels as zeroes, with the DMA set to
-# auto loop (can this be a ring - with 513 bytes, probably not). Alternatively raise an IRQ during the Break to get the main code to reset
-# everything?
-
-@rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
-def dmx_out():
-    pull()                  .side(1)          # Stall with line IDLE until the DMA transfer begins
-    set(x, 21)              .side(0)          # Assert BREAK for 176us (=22*(1+7)us)
-    label("breakloop")                         
-    jmp(x_dec, "breakloop")             [7]    
-
-    nop()                   .side(1)    [7]   # Assert MAB. 1+7+1+7 cycles = 16us
-    nop()                               [7]
-
-    wrap_target()                             # Send data frame - OSR already has the first byte in it from earlier
-    set(x, 7)               .side(0)    [3]   # Send START bit (4us) and load the bit counter
-
-    label("bitloop")                          
-    out(pins, 1)                              # Shift 1 bit (4us) from OSR to the line
-    jmp(x_dec, "bitloop")               [2]   
-
-    pull()                  .side(1)    [7]   # Send 2 STOP bits (8us), or stall with line in idle state
-    wrap()
-
-    """ Interface to a DMX universe for sending using a PIO module.
-    Quick theory of operation:
-
-    DMX basics:
-        DMX data frames comprise a long (176us) "break" as a logic low, followed by a 16us "MarkAfterBreak" as a logic high, 
-        then a series of bytes in 8N2 MSB-first format at 4us/bit. Each data frame is known as a Universe and comprises a 
-        single-byte Start Code (0 for DMX) followed by between 1 and 512 data bytes, one byte per lighting channel
-
-    Class basics:
-        Put simply, the class sets up the DMA and PIO and then provides a convenient interface to the bytearray used by the
-        DMA controller. Setting or reading individual channels is permitted, as is reading/writing the entire Universe. When 
-        used as a transmitter, the class uses DMA and PIO to repeatedly send the universe. When used as a receiver, each received
-        universe is copied and made available to the user as soon as it is received.
-
-    DMA Channel and PIO allocations:
-        It is not possible to check the hardware to see if a DMA channel or PIO statemachine is already in use. No extra locking
-        has been added in this software, thus clashes need to be avoided by the user code.
-    """
 
 class DMX_TX:
     """ Interface to a DMX universe for sending using a PIO module.
@@ -119,8 +56,6 @@ class DMX_TX:
         2. Upon receipt of the DREQ, DMA sends the next byte to the PIO input FIFO
         3. When the entire Universe has been DMA'd, the DMA raises a processor interrupt
         4. When the DMA interrupt is received, the processor resets the PIO and restarts the DMA 
-
-        TODO: Need to make sure that the last few values aren't lost in the FIFO before the PIO has chance to send them
     """
 
     def __init__(self, pin, universe_size=512, statemachine=0, dmachannel=0):
@@ -134,6 +69,9 @@ class DMX_TX:
 
         Raises:
             ValueError: Any invalid parameters are reported as exceptions
+
+        TODO: Allow the interbyte delay to be specified
+        TODO: Allow the inter-packet delay to be specified (or is the rate good enough?)
         """
         if universe_size < 1 or universe_size > 512:
             raise ValueError("DMX universes must have 1...512 channels")
@@ -141,13 +79,32 @@ class DMX_TX:
         self.channels       = bytearray([0 for _ in range(universe_size+1)]) # +1 because DMX-0 is the start code, with channels 1-512 behind it
 
         self._pin           = Pin(pin, Pin.OUT, Pin.PULL_UP)
-        self._sm            = rp2.StateMachine(statemachine, dmx_out, freq=1_000_000, sideset_base=self._pin, out_base=self._pin)
+        self._sm            = rp2.StateMachine(statemachine, DMX_TX.dmx_out, freq=1_000_000, sideset_base=self._pin, out_base=self._pin)
         self._dma           = dma.DmaChannel(dmachannel)
 
         # Set up the DMA controller
         self._dma.NoWriteIncr()
         self._dma.SetTREQ(0) # TODO - hard coded as PIO0 TX0
 
+    def start(self, period = 50):
+        """ Start sending DMX packets
+
+        Args:
+            period (int, optional): Start sending a new packet every period milliseconds. Defaults to 50.
+        """
+        self.timer_count = 0
+        self.t = Timer(period=period, callback=self.restart)
+
+    def pause(self):
+        self.t.deinit()
+        self._sm.active(0)
+
+    def restart(self, t):
+        self._sm.active(1)
+        self._sm.restart()
+        self._dma.SetChannelData(addressof(self.channels), 0x50200010, len(self.channels), True) # TODO Hard coded as PIO0 for now
+        self.timer_count += 1
+   
     def __del__(self):
         # TODO - tidy up the state machine and DMA channels
         pass
@@ -175,17 +132,26 @@ class DMX_TX:
         result += "\n"
         return result
     
-    def pause(self):
-        self.t.deinit()
-        self._sm.active(0)
+    @staticmethod
+    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
+    def dmx_out():
+        pull()                  .side(1)          # Stall with line IDLE until the DMA transfer begins
+        set(x, 21)              .side(0)          # Assert BREAK for 176us (=22*(1+7)us)
+        label("breakloop")                         
+        jmp(x_dec, "breakloop")             [7]    
 
-    def restart(self, t):
-        self._sm.active(1)
-        self._sm.restart()
-        self._dma.SetChannelData(addressof(self.channels), 0x50200010, len(self.channels), True) # TODO Hard coded as PIO0 for now
+        nop()                   .side(1)    [7]   # Assert MAB. 1+7+1+7 cycles = 16us
+        nop()                               [7]
 
-    def start(self):
-        self.t = Timer(period=50, callback=self.restart) # TODO make the period configurable
+        wrap_target()                             # Send data frame - OSR already has the first byte in it from earlier
+        set(x, 7)               .side(0)    [3]   # Send START bit (4us) and load the bit counter
+
+        label("bitloop")                          
+        out(pins, 1)                              # Shift 1 bit (4us) from OSR to the line
+        jmp(x_dec, "bitloop")               [2]   
+
+        pull()                  .side(1)    [7]   # Send 2 STOP bits (8us), or stall with line in idle state
+        wrap()
 
 class DMX_RX:
     """
@@ -219,7 +185,6 @@ class DMX_RX:
 
         Args:
             pin (numeric):                  Pin number to use
-            direction (TX or RX, optional): Is this a DMX transmitter or receiver? Defaults to RX.
             statemachine (int, optional):   Which PIO statemachine should be used. Defaults to 4.
             dmachannel (int, optional):     Which DMA channel should be used. Defaults to 1.
 
@@ -229,16 +194,23 @@ class DMX_RX:
         self.channels   = bytearray([0 for _ in range(513)]) # DMX-0 is the start code, with channels 1-512 behind it
         
         self._pin       = Pin(pin, Pin.IN)
-        self._debugpin  = Pin(15, Pin.OUT)
 
-        self._sm = rp2.StateMachine(statemachine, dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin, sideset_base=self._debugpin)
-        #self._sm = rp2.StateMachine(statemachine, dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin)
+        self._sm = rp2.StateMachine(statemachine, DMX_RX.dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin)
         self._sm.irq(handler=self.IRQ_from_PIO)
         self.irq_count = 0
         
         self._dma = dma.DmaChannel(dmachannel)
         self._dma.NoReadIncr()
-        self._dma.SetTREQ(12) # TODO - hard coded as PIO4 TX for the moment
+        self._dma.SetTREQ(dma.TREQ_PIO4_RX)
+        #self._dma.SetTREQ(12) # TODO - hard coded as PIO4 TX for the moment
+
+    def start(self):
+        self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX +3 (LSB byte without shifting)
+        self._sm.restart()
+        self._sm.active(1)
+    
+    def pause(self):
+        self._sm.active(0)
 
     def __del__(self):
         # TODO - tidy up the state machine and DMA channels
@@ -267,23 +239,58 @@ class DMX_RX:
         result += "\n"
         return result
     
-    def pause(self):
-        self._sm.active(0)
+    @staticmethod
+    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
+    #@rp2.asm_pio(fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
+    def dmx_in():
+        # Look for the BREAK - minimum 90us low time
+        label("break_reset")
+        set(x, 29)                                # Setup a counter to count the iterations on break_loop
+        label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
+        jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
+        jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
+
+        # Now wait for the mark after break
+        wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
+
+        # Now we just need a simple 8N2 UART
+        wrap_target()
+
+        # Start bit
+        wait(0, pin, 0)                           # Stall until start bit is asserted
+        set(x, 7)                           [4]   # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
+
+        # 8 data bits
+        label("bitloop")
+        in_(pins, 1)                              # Shift data bit into ISR
+        jmp(x_dec, "bitloop")               [2]   # Loop 8 times, each loop iteration is 4us (in + jmp + 2 delay)
+
+        # Look for the stop bit: TODO - not yet implemented correctly
+        #     if we get a stop bit, store the value just received to the RX FIFO and thus trigger a DMA
+        #     if we DON'T get a stop bit, the last thing we received was probably the start of the next BREAK, so send an IRQ to reset the DMA controller and 
+        #           jump back to waiting for the end of the break. We probably ought to check that the ISR is also zero, but that's hard, and framing error 
+        #           handling in DMX isn't defined and the best option is probably to trash the rest of the frame and wait for another BREAK anyway
+        jmp(pin, "got_stopbit")                   # Check to see if we got the stop bit 
+        irq(block, rel(0))                        # TODO Hard coded as PIO relative IRQ0 at the moment
+        jmp("break_reset")                        
+
+        label("got_stopbit")
+        push(noblock)                             # DMA will read a byte from +3, so no need to shift
+        wrap()
+
+    # TODO input PIO code doesn't signal the start of frame to the DMA controller, it just locks up until the next transition is detected
+    # This will cause problems if the received universe is not the expected length (both too short and too long will be challenging)
+    # One option might be to detect the Break, and whilst the break is still present, push() out any missing channels as zeroes, with the DMA set to
+    # auto loop (can this be a ring - with 513 bytes, probably not). Alternatively raise an IRQ during the Break to get the main code to reset
+    # everything?
 
     def IRQ_from_PIO(self, sm):
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
         self.irq_count += 1
 
-    def start(self):
-        self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
-        self._sm.restart()
-        self._sm.active(1)
-
-        #for chan in range(len(self.channels)):
-        #    self.channels[chan] = self._sm.get()
 
 def test():
-    dmx_out = DMX_TX(3, 20)
+    dmx_out = DMX_TX(3)
     dmx_out.start()
 
     dmx_out.channels[1]   = 85
@@ -310,16 +317,26 @@ def test():
     dmx_in.start()
 
     last_irq_count = dmx_in.irq_count
+    last_timer_count = dmx_out.timer_count
+
+    dmx_test_chan = 512
+
     for n in range(50):
-        dmx_out.channels[1] += 1
-        print(f"{dmx_out.channels[1]}:{dmx_in.channels[1]}...", end="")
-        time.sleep_ms(400)
-        irq_count = dmx_in.irq_count
-        print(f"{dmx_in.channels[1]} IRQ {irq_count - last_irq_count}...")
-        last_irq_count = irq_count
+        dmx_out.channels[dmx_test_chan] += 1
+        print(f"Ch:{dmx_test_chan} Tx:{dmx_out.channels[dmx_test_chan]:3} Rx:{dmx_in.channels[dmx_test_chan]:3}...", end="")
+        time.sleep_ms(50)
+
+        irq_count   = dmx_in.irq_count
+        timer_count = dmx_out.timer_count
+
+        print(f"{dmx_in.channels[dmx_test_chan]:3} {dmx_out.channels[dmx_test_chan] == dmx_in.channels[dmx_test_chan]:5} IRQ {irq_count - last_irq_count} Timer {timer_count - last_timer_count}")
+        last_irq_count   = irq_count
+        last_timer_count = timer_count
+
+        time.sleep_ms(100)
         
     #for n in range(256):
     #    dmx_out.send(1,n)
     #    time.sleep_ms(200)
     
-    #d.pause()
+    dmx_out.pause()

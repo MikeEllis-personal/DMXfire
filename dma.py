@@ -1,3 +1,51 @@
+# Constants for the various Transfer REQuest sources
+TREQ_PIO0_TX    = 0
+TREQ_PIO1_TX    = 1
+TREQ_PIO2_TX    = 2
+TREQ_PIO3_TX    = 3
+TREQ_PIO4_TX    = 8
+TREQ_PIO5_TX    = 9
+TREQ_PIO6_TX    = 10
+TREQ_PIO7_TX    = 11
+
+TREQ_PIO0_RX    = 4
+TREQ_PIO1_RX    = 5
+TREQ_PIO2_RX    = 6
+TREQ_PIO3_RX    = 7
+TREQ_PIO4_RX    = 12
+TREQ_PIO5_RX    = 13
+TREQ_PIO6_RX    = 14
+TREQ_PIO7_RX    = 15
+
+TREQ_SPI0_TX    = 16
+TREQ_SPI0_RX    = 17
+TREQ_SPI1_TX    = 18
+TREQ_SPI1_RX    = 19
+
+TREQ_UART0_TX   = 20
+TREQ_UART0_RX   = 21
+TREQ_UART1_TX   = 22
+TREQ_UART1_RX   = 23
+
+TREQ_PWM0       = 24
+TREQ_PWM1       = 25
+TREQ_PWM2       = 26
+TREQ_PWM3       = 27
+TREQ_PWM4       = 28
+TREQ_PWM5       = 29
+TREQ_PWM6       = 30
+TREQ_PWM7       = 31
+
+TREQ_I2C0_TX    = 32
+TREQ_I2C0_RX    = 33
+TREQ_I2C1_TX    = 34
+TREQ_I2C1_RX    = 35
+
+TREQ_ADC        = 36
+TREQ_XIP_STREAM = 37
+TREQ_XIP_SSITX  = 38
+TREQ_XIP_SSIRX  = 39
+
 class DmaChannel:
     def __init__(self, channelNumber):
         offset = channelNumber * 0x40
@@ -37,50 +85,42 @@ class DmaChannel:
 
     @micropython.viper
     def SetWriteAddress(self, address: uint):
-        ptr= ptr32(self.WriteRegister)
+        ptr = ptr32(self.WriteRegister)
         ptr[0] = address
         #self.WriteAddress = address
         
     @micropython.viper
     def SetReadAddress(self, address: uint):
-        ptr= ptr32(self.ReadRegister)
+        ptr = ptr32(self.ReadRegister)
         ptr[0] = address
         #self.ReadAddress = address
         
     @micropython.viper
     def SetTransferCount(self, count: uint):
-        ptr= ptr32(self.TransferCountRegister)
+        ptr = ptr32(self.TransferCountRegister)
         ptr[0] = count
         #self.TransferCount = count
         
     @micropython.viper
     def SetControlRegister(self, controlValue: uint):
-        ptr= ptr32(self.ControlRegister)
+        ptr = ptr32(self.ControlRegister)
         ptr[0] = controlValue
         self.ControlValue = controlValue
         
     @micropython.viper
     def SetTriggerControlRegister(self, controlValue: uint):
-        ptr= ptr32(self.TriggerControlRegister)
+        ptr = ptr32(self.TriggerControlRegister)
         ptr[0] = controlValue
         self.ControlValue = controlValue
     
     @micropython.viper
     def TriggerChannel(self):
-        rd_ptr = ptr32(self.ReadRegister)
-        wr_ptr = ptr32(self.WriteRegister)
-        tc_ptr = ptr32(self.TransferCountRegister)
-
-        print(f"Trigger  Read: 0x{rd_ptr[0]:08x} Write: 0x{wr_ptr[0]:08x} Count: {tc_ptr[0]} Control: 0x{self.ControlValue:08x}")
         ptr= ptr32(self.TriggerControlRegister)
         ptr[0] = uint(self.ControlValue)
         
-    #@micropython.viper
     def SetChainTo(self, chainNumber : uint):
         self.ControlValue  &= ~ 0x7800
         self.ControlValue |= (chainNumber <<11)
-        #ptr= ptr32(self.ControlRegister)
-        #ptr[0] =  uint(self.controlValue)
         
     def SetByteTransfer(self):
         self.ControlValue  &= ~ 0xC
@@ -90,7 +130,6 @@ class DmaChannel:
         self.ControlValue |= 0x4
         
     def SetWordTransfer(self):
-        #self.ControlValue  &= ~ 0xC
         self.ControlValue |= 0xC
     
     def SetReadIncr(self):
@@ -115,8 +154,6 @@ class DmaChannel:
 
     @micropython.viper
     def SetChannelData(self, readAddress : uint , writeAddress : uint, count: uint, trigger : bool):
-        #print(f"Setup... Read: 0x{readAddress:08x} Write: 0x{writeAddress:08x} Count: {count}")
-
         # Disable the DMA channel first
         control = ptr32(self.ControlRegister)
         control[0] = 0
@@ -130,12 +167,6 @@ class DmaChannel:
         wr_ptr[0] = writeAddress
         tc_ptr[0] = count
 
-        #print(f"Readback Read: 0x{rd_ptr[0]:08x} Write: 0x{wr_ptr[0]:08x} Count: {tc_ptr[0]}")
-
         if trigger:
             ctrl_ptr    = ptr32(self.TriggerControlRegister)
             ctrl_ptr[0] = uint(self.ControlValue)
-            #print(f"Triggered with CTRL word 0x{self.ControlValue:08x}")
-
-        u_ptr = ptr8(readAddress)
-        #print(f"Data from 0x{readAddress:08x}: {u_ptr[0]: 3} {u_ptr[1]: 3} {u_ptr[2]: 3} {u_ptr[3]: 3} {u_ptr[4]: 3} {u_ptr[5]: 3} {u_ptr[6]: 3} {u_ptr[7]: 3}")
