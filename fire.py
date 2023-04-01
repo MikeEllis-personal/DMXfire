@@ -23,7 +23,7 @@ def ws2812():
     nop()                   .side(0)    [T2 - 1]
     wrap()
 
-fade_r         = 0.9
+fade_r         = 0.8
 fade_g         = 0.5
 fade_b         = 0.3
 leds           = 256
