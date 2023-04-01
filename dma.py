@@ -154,6 +154,8 @@ class DmaChannel:
 
     @micropython.viper
     def SetChannelData(self, readAddress : uint , writeAddress : uint, count: uint, trigger : bool):
+        #print(f"Setup... Read: 0x{readAddress:08x} Write: 0x{writeAddress:08x} Count: {count}")
+
         # Disable the DMA channel first
         control = ptr32(self.ControlRegister)
         control[0] = 0
@@ -167,6 +169,12 @@ class DmaChannel:
         wr_ptr[0] = writeAddress
         tc_ptr[0] = count
 
+        #print(f"Readback Read: 0x{rd_ptr[0]:08x} Write: 0x{wr_ptr[0]:08x} Count: {tc_ptr[0]}")
+
         if trigger:
             ctrl_ptr    = ptr32(self.TriggerControlRegister)
             ctrl_ptr[0] = uint(self.ControlValue)
+            #print(f"Triggered with CTRL word 0x{self.ControlValue:08x}")
+
+        u_ptr = ptr8(readAddress)
+        #print(f"Data from 0x{readAddress:08x}: {u_ptr[0]: 3} {u_ptr[1]: 3} {u_ptr[2]: 3} {u_ptr[3]: 3} {u_ptr[4]: 3} {u_ptr[5]: 3} {u_ptr[6]: 3} {u_ptr[7]: 3}")
