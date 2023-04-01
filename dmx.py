@@ -212,7 +212,6 @@ class DMX_RX:
     def pause(self):
         self._sm.active(0)
 
-<<<<<<< HEAD
     def __del__(self):
         # TODO - tidy up the state machine and DMA channels
         pass
@@ -250,63 +249,6 @@ class DMX_RX:
         label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
         jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
         jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
-=======
-
-    def start(self, t):
-        self._sm.active(1)
-        self._sm.restart()
-        self._dma.SetChannelData(addressof(self._universe), 0x50200010, self._universe_size +1, True)
-
-    @property
-    def universe(self):
-        return self._universe
-
-    @universe.setter
-    def universe(self, values, start_chan=0):
-        """ TODO - update the entire universe """
-        # Must be passed an array of numeric values, with at most the correct number of values
-        pass
-
-    @staticmethod
-    def test():
-        d = DMX(3, DMX.TX)
-        t = Timer(period=50, callback=d.start)
-
-        #print(d)
-
-        d.send(1,85)
-        d.send(2,64)
-        d.send(3,32)
-        d.send(4,16)
-        d.send(5,8)
-        d.send(6,4)
-        d.send(7,2)
-        d.send(8,1)
-        d.send(10,170)
-        d.send(12,85)
-        d.send(16,250)
-        d.send(17,251)
-        d.send(18,252)
-        d.send(19,253)
-        d.send(20,85)
-        d.send(512,85)
-
-        #print(d)
-
-        #print(d._sm)
-
-        for n in range(255):
-            d.send(1,n)
-            time.sleep_ms(500)
-        
-        t.deinit()
-        
-
-        #for n in range(200):
-        #    d._sm.restart()
-        #    d._sm.put(d._universe)
-        #    sleep_ms(20)
->>>>>>> 3b423a355578c4a4e88af946770b099d85dd3828
 
         # Now wait for the mark after break
         wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
