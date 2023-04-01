@@ -1,6 +1,5 @@
 import rp2
 from machine import Pin, Timer
-import time
 
 from uctypes import addressof
 
@@ -290,6 +289,8 @@ class DMX_RX:
 
 
 def test():
+    from time import sleep_ms
+
     dmx_out = DMX_TX(3)
     dmx_out.start()
 
@@ -324,7 +325,7 @@ def test():
     for n in range(50):
         dmx_out.channels[dmx_test_chan] += 1
         print(f"Ch:{dmx_test_chan} Tx:{dmx_out.channels[dmx_test_chan]:3} Rx:{dmx_in.channels[dmx_test_chan]:3}...", end="")
-        time.sleep_ms(50)
+        sleep_ms(50)
 
         irq_count   = dmx_in.irq_count
         timer_count = dmx_out.timer_count
@@ -333,7 +334,7 @@ def test():
         last_irq_count   = irq_count
         last_timer_count = timer_count
 
-        time.sleep_ms(100)
+        sleep_ms(100)
         
     #for n in range(256):
     #    dmx_out.send(1,n)

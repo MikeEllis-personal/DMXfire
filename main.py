@@ -1,4 +1,4 @@
-import dmx
+from dmx import DMX_RX
 import fire
 
 # Initialise the DMX receiver
