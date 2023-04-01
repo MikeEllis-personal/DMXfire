@@ -83,42 +83,42 @@ class DmaChannel:
         #      | +--------------------------------------------------------------------    30: (0)    READ_ERROR       - Not cleared
         #      +----------------------------------------------------------------------    31: (0)    AHB_ERROR        - Read only
 
-    @micropython.viper
-    def SetWriteAddress(self, address: uint):
-        ptr = ptr32(self.WriteRegister)
+    @micropython.viper                             # type: ignore
+    def SetWriteAddress(self, address: uint):      # type: ignore
+        ptr = ptr32(self.WriteRegister)            # type: ignore
         ptr[0] = address
         #self.WriteAddress = address
         
-    @micropython.viper
-    def SetReadAddress(self, address: uint):
-        ptr = ptr32(self.ReadRegister)
+    @micropython.viper                             # type: ignore
+    def SetReadAddress(self, address: uint):       # type: ignore
+        ptr = ptr32(self.ReadRegister)             # type: ignore
         ptr[0] = address
         #self.ReadAddress = address
         
-    @micropython.viper
-    def SetTransferCount(self, count: uint):
-        ptr = ptr32(self.TransferCountRegister)
+    @micropython.viper                             # type: ignore
+    def SetTransferCount(self, count: uint):       # type: ignore
+        ptr = ptr32(self.TransferCountRegister)    # type: ignore
         ptr[0] = count
         #self.TransferCount = count
         
-    @micropython.viper
-    def SetControlRegister(self, controlValue: uint):
-        ptr = ptr32(self.ControlRegister)
+    @micropython.viper                             # type: ignore
+    def SetControlRegister(self, controlValue: uint):      # type: ignore
+        ptr = ptr32(self.ControlRegister)          # type: ignore
         ptr[0] = controlValue
         self.ControlValue = controlValue
         
-    @micropython.viper
-    def SetTriggerControlRegister(self, controlValue: uint):
-        ptr = ptr32(self.TriggerControlRegister)
+    @micropython.viper                             # type: ignore
+    def SetTriggerControlRegister(self, controlValue: uint):      # type: ignore
+        ptr = ptr32(self.TriggerControlRegister)   # type: ignore
         ptr[0] = controlValue
         self.ControlValue = controlValue
     
-    @micropython.viper
+    @micropython.viper                             # type: ignore
     def TriggerChannel(self):
-        ptr= ptr32(self.TriggerControlRegister)
-        ptr[0] = uint(self.ControlValue)
+        ptr= ptr32(self.TriggerControlRegister)    # type: ignore
+        ptr[0] = uint(self.ControlValue)           # type: ignore
         
-    def SetChainTo(self, chainNumber : uint):
+    def SetChainTo(self, chainNumber : uint):      # type: ignore
         self.ControlValue  &= ~ 0x7800
         self.ControlValue |= (chainNumber <<11)
         
@@ -152,18 +152,18 @@ class DmaChannel:
         # Set the TReq source to the given value (bits 15-20 of the control word)
         self.ControlValue = (self.ControlValue & ~ (0x3f << 15)) | ((value & 0x3f) << 15)
 
-    @micropython.viper
-    def SetChannelData(self, readAddress : uint , writeAddress : uint, count: uint, trigger : bool):
+    @micropython.viper                                  # type: ignore
+    def SetChannelData(self, readAddress : uint , writeAddress : uint, count: uint, trigger : bool):       # type: ignore
         #print(f"Setup... Read: 0x{readAddress:08x} Write: 0x{writeAddress:08x} Count: {count}")
 
         # Disable the DMA channel first
-        control = ptr32(self.ControlRegister)
+        control = ptr32(self.ControlRegister)           # type: ignore
         control[0] = 0
 
         # Set up the required values
-        rd_ptr = ptr32(self.ReadRegister)
-        wr_ptr = ptr32(self.WriteRegister)
-        tc_ptr = ptr32(self.TransferCountRegister)
+        rd_ptr = ptr32(self.ReadRegister)               # type: ignore
+        wr_ptr = ptr32(self.WriteRegister)              # type: ignore
+        tc_ptr = ptr32(self.TransferCountRegister)      # type: ignore
 
         rd_ptr[0] = readAddress
         wr_ptr[0] = writeAddress
@@ -172,9 +172,9 @@ class DmaChannel:
         #print(f"Readback Read: 0x{rd_ptr[0]:08x} Write: 0x{wr_ptr[0]:08x} Count: {tc_ptr[0]}")
 
         if trigger:
-            ctrl_ptr    = ptr32(self.TriggerControlRegister)
-            ctrl_ptr[0] = uint(self.ControlValue)
+            ctrl_ptr    = ptr32(self.TriggerControlRegister)      # type: ignore
+            ctrl_ptr[0] = uint(self.ControlValue)                 # type: ignore
             #print(f"Triggered with CTRL word 0x{self.ControlValue:08x}")
 
-        u_ptr = ptr8(readAddress)
+        u_ptr = ptr8(readAddress)      # type: ignore
         #print(f"Data from 0x{readAddress:08x}: {u_ptr[0]: 3} {u_ptr[1]: 3} {u_ptr[2]: 3} {u_ptr[3]: 3} {u_ptr[4]: 3} {u_ptr[5]: 3} {u_ptr[6]: 3} {u_ptr[7]: 3}")
