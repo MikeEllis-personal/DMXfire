@@ -24,8 +24,8 @@ def ws2812():
     wrap()
 
 fade_r         = 0.9
-fade_g         = 0.6
-fade_b         = 0.4
+fade_g         = 0.5
+fade_b         = 0.3
 leds           = 256
 blocks         = 8
 dimblocks      = 3
