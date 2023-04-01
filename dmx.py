@@ -1,7 +1,7 @@
-import rp2
-from machine import Pin, Timer
+import rp2                            # type: ignore
+from machine import Pin, Timer        # type: ignore 
 
-from uctypes import addressof
+from uctypes import addressof         # type: ignore
 
 import dma
 
@@ -134,23 +134,23 @@ class DMX_TX:
     @staticmethod
     @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
     def dmx_out():
-        pull()                  .side(1)          # Stall with line IDLE until the DMA transfer begins
-        set(x, 21)              .side(0)          # Assert BREAK for 176us (=22*(1+7)us)
-        label("breakloop")                         
-        jmp(x_dec, "breakloop")             [7]    
+        pull()                  .side(1)          # type: ignore Stall with line IDLE until the DMA transfer begins
+        set(x, 21)              .side(0)          # type: ignore Assert BREAK for 176us (=22*(1+7)us)
+        label("breakloop")                        # type: ignore  
+        jmp(x_dec, "breakloop")             [7]   # type: ignore  
 
-        nop()                   .side(1)    [7]   # Assert MAB. 1+7+1+7 cycles = 16us
-        nop()                               [7]
+        nop()                   .side(1)    [7]   # type: ignore Assert MAB. 1+7+1+7 cycles = 16us
+        nop()                               [7]   # type: ignore 
 
-        wrap_target()                             # Send data frame - OSR already has the first byte in it from earlier
-        set(x, 7)               .side(0)    [3]   # Send START bit (4us) and load the bit counter
+        wrap_target()                             # type: ignore Send data frame - OSR already has the first byte in it from earlier
+        set(x, 7)               .side(0)    [3]   # type: ignore Send START bit (4us) and load the bit counter
 
-        label("bitloop")                          
-        out(pins, 1)                              # Shift 1 bit (4us) from OSR to the line
-        jmp(x_dec, "bitloop")               [2]   
+        label("bitloop")                          # type: ignore 
+        out(pins, 1)                              # type: ignore Shift 1 bit (4us) from OSR to the line
+        jmp(x_dec, "bitloop")               [2]   # type: ignore 
 
-        pull()                  .side(1)    [7]   # Send 2 STOP bits (8us), or stall with line in idle state
-        wrap()
+        pull()                  .side(1)    [7]   # type: ignore Send 2 STOP bits (8us), or stall with line in idle state
+        wrap()                                    # type: ignore 
 
 class DMX_RX:
     """
@@ -243,39 +243,39 @@ class DMX_RX:
     #@rp2.asm_pio(fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
     def dmx_in():
         # Look for the BREAK - minimum 90us low time
-        label("break_reset")
-        set(x, 29)                                # Setup a counter to count the iterations on break_loop
-        label("break_loop")                       # Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
-        jmp(pin, "break_reset")                   # Go back to start if pin goes high during the break
-        jmp(x_dec, "break_loop")            [1]   # Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
+        label("break_reset")                      # type: ignore 
+        set(x, 29)                                # type: ignore Setup a counter to count the iterations on break_loop
+        label("break_loop")                       # type: ignore Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
+        jmp(pin, "break_reset")                   # type: ignore Go back to start if pin goes high during the break
+        jmp(x_dec, "break_loop")            [1]   # type: ignore Keep waiting until 90us has elapsed TODO - why the one wait here? Counting to a higher value would be better (faster)
 
         # Now wait for the mark after break
-        wait(1, pin, 0)                           # Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
+        wait(1, pin, 0)                           # type: ignore Stall until line goes high for the Mark-After-Break (MAB) TODO - minimum MAB value is 12us, not checked
 
         # Now we just need a simple 8N2 UART
-        wrap_target()
+        wrap_target()                             # type: ignore 
 
         # Start bit
-        wait(0, pin, 0)                           # Stall until start bit is asserted
-        set(x, 7)                           [4]   # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
+        wait(0, pin, 0)                           # type: ignore Stall until start bit is asserted
+        set(x, 7)                           [4]   # type: ignore Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
 
         # 8 data bits
-        label("bitloop")
-        in_(pins, 1)                              # Shift data bit into ISR
-        jmp(x_dec, "bitloop")               [2]   # Loop 8 times, each loop iteration is 4us (in + jmp + 2 delay)
+        label("bitloop")                          # type: ignore 
+        in_(pins, 1)                              # type: ignore Shift data bit into ISR
+        jmp(x_dec, "bitloop")               [2]   # type: ignore Loop 8 times, each loop iteration is 4us (in + jmp + 2 delay)
 
         # Look for the stop bit: TODO - not yet implemented correctly
         #     if we get a stop bit, store the value just received to the RX FIFO and thus trigger a DMA
         #     if we DON'T get a stop bit, the last thing we received was probably the start of the next BREAK, so send an IRQ to reset the DMA controller and 
         #           jump back to waiting for the end of the break. We probably ought to check that the ISR is also zero, but that's hard, and framing error 
         #           handling in DMX isn't defined and the best option is probably to trash the rest of the frame and wait for another BREAK anyway
-        jmp(pin, "got_stopbit")                   # Check to see if we got the stop bit 
-        irq(block, rel(0))                        # TODO Hard coded as PIO relative IRQ0 at the moment
-        jmp("break_reset")                        
+        jmp(pin, "got_stopbit")                   # type: ignore Check to see if we got the stop bit 
+        irq(block, rel(0))                        # type: ignore TODO Hard coded as PIO relative IRQ0 at the moment
+        jmp("break_reset")                        # type: ignore 
 
-        label("got_stopbit")
-        push(noblock)                             # DMA will read a byte from +3, so no need to shift
-        wrap()
+        label("got_stopbit")                      # type: ignore 
+        push(noblock)                             # type: ignore DMA will read a byte from +3, so no need to shift
+        wrap()                                    # type: ignore 
 
     # TODO input PIO code doesn't signal the start of frame to the DMA controller, it just locks up until the next transition is detected
     # This will cause problems if the received universe is not the expected length (both too short and too long will be challenging)
