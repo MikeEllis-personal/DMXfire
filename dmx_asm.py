@@ -16,12 +16,12 @@ def dmx_in():
     pull()
     # Look for the BREAK - minimum 90us (29 loops at 3us/loop + 5 instructions) low time
     label("break_reset") 
-    set(x, 29)                    .side(0)                 # DEBUF - (Re-)starting the search for a BREAK 
+    set(x, 29)                    .side(3)                 # DEBUG - Mark Before Break / Interframe spacing 
     
     label("break_loop") 
     # Restart the (full) time if pin goes high during the (suspected) break - some sort of framing error
-    jmp(pin, "break_reset")       .side(2)       [1]       # DEBUG - Found a BREAK
-    jmp(x_dec, "break_loop")
+    jmp(pin, "break_reset")                      [1]       
+    jmp(x_dec, "break_loop")      .side(2)                 # DEBUG - Found a BREAK
 
     # BREAK (low) minimum length exceeded - definitely a start of frame. 
 
