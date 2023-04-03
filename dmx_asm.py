@@ -10,6 +10,7 @@ def dmx_in():
     #     Side(0) - "Idle"
     #     Side(1) - Receiving a data bit
     #     Side(2) - Checking length of BREAK - set to zero as soon as minimum BREAK length exceeded
+    #     Side(3) - Waiting for BREAK
 
     # Read the expected frame length into the OSR - later loaded into the Y scratch register
     # This is only read once and re-used over and over and over again
@@ -56,7 +57,7 @@ def dmx_in():
     # processor may not have serviced the interrupt and reset the DMA channel before the next frame starts, causing
     # corruption in the data received
     
-    # Already had 44us of the BREAK - go and wait for the rest of the it
+    # Already had 44us of the BREAK - go and wait for the rest of the it [(92us-44us) / 3us/loop - 3us for jmp, set, mov] = 15
     set(x, 15)
     jmp("break_loop") 
 
