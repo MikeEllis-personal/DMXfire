@@ -78,7 +78,11 @@ class DMX_TX:
         self.channels       = bytearray([0 for _ in range(universe_size+1)]) # +1 because DMX-0 is the start code, with channels 1-512 behind it
 
         self._pin           = Pin(pin, Pin.OUT, Pin.PULL_UP)
-        self._sm            = rp2.StateMachine(statemachine, DMX_TX.dmx_out, freq=1_000_000, sideset_base=self._pin, out_base=self._pin)
+        self._sm            = rp2.StateMachine(statemachine, 
+                                               prog=DMX_TX.dmx_out, 
+                                               freq=1_000_000, 
+                                               sideset_base=self._pin, 
+                                               out_base=self._pin)
         self._dma           = dma.DmaChannel(dmachannel)
 
         # Set up the DMA controller
@@ -113,6 +117,7 @@ class DMX_TX:
         pass
 
     def __str__(self):
+        result = ""
         for chan in range(len(self.channels)):
             if chan % 20 == 1:
                 result += f"\n{chan:03}:"                      # Start a new line with the channel number every 20 lines
@@ -132,7 +137,10 @@ class DMX_TX:
         return result
     
     @staticmethod
-    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, autopull=False, out_init=rp2.PIO.OUT_HIGH, out_shiftdir=rp2.PIO.SHIFT_RIGHT)
+    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, 
+                 autopull=False, 
+                 out_init=rp2.PIO.OUT_HIGH, 
+                 out_shiftdir=rp2.PIO.SHIFT_RIGHT)
     def dmx_out():
         pull()                  .side(1)          # type: ignore Stall with line IDLE until the DMA transfer begins
         set(x, 21)              .side(0)          # type: ignore Assert BREAK for 176us (=22*(1+7)us)
@@ -179,7 +187,7 @@ class DMX_RX:
         has been added in this software, thus clashes need to be avoided by the user code.
     """
 
-    def __init__(self, pin, statemachine=4, dmachannel=1):
+    def __init__(self, pin, statemachine=4, dmachannel=1, irqpin=None):
         """ Initialisation of the DMX controller
 
         Args:
@@ -193,8 +201,19 @@ class DMX_RX:
         self.channels   = bytearray([0 for _ in range(513)]) # DMX-0 is the start code, with channels 1-512 behind it
         
         self._pin       = Pin(pin, Pin.IN)
+        if irqpin:
+            self._irqpin = Pin(irqpin, Pin.OUT, Pin.PULL_UP)
+        else:
+            self._irqpin = None
 
-        self._sm = rp2.StateMachine(statemachine, DMX_RX.dmx_in, freq=1_000_000,in_base=self._pin, jmp_pin=self._pin)
+        self._debugpin  = Pin(12, Pin.OUT, Pin.PULL_UP) # TODO Temporary hard coded debug pin
+
+        self._sm = rp2.StateMachine(statemachine, 
+                                    prog=DMX_RX.dmx_in, 
+                                    freq=1_000_000,
+                                    in_base=self._pin, 
+                                    jmp_pin=self._pin,
+                                    sideset_base=self._debugpin)
         self._sm.irq(handler=self.IRQ_from_PIO)
         self.irq_count = 0
         
@@ -202,6 +221,7 @@ class DMX_RX:
         self._dma.NoReadIncr()
         self._dma.SetTREQ(dma.TREQ_PIO4_RX)
         #self._dma.SetTREQ(12) # TODO - hard coded as PIO4 TX for the moment
+
 
     def start(self):
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX +3 (LSB byte without shifting)
@@ -220,6 +240,8 @@ class DMX_RX:
         pass
 
     def __str__(self):
+        result = ""
+
         for chan in range(len(self.channels)):
             if chan % 20 == 1:
                 result += f"\n{chan:03}:"                      # Start a new line with the channel number every 20 lines
@@ -239,8 +261,10 @@ class DMX_RX:
         return result
     
     @staticmethod
-    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
-    #@rp2.asm_pio(fifo_join=rp2.PIO.JOIN_RX, in_shiftdir=rp2.PIO.SHIFT_RIGHT, autopush=False)
+    @rp2.asm_pio(sideset_init=rp2.PIO.OUT_HIGH, 
+                 fifo_join=rp2.PIO.JOIN_RX, 
+                 in_shiftdir=rp2.PIO.SHIFT_RIGHT, 
+                 autopush=False)
     def dmx_in():
         # Look for the BREAK - minimum 90us low time
         label("break_reset")                      # type: ignore 
@@ -256,8 +280,8 @@ class DMX_RX:
         wrap_target()                             # type: ignore 
 
         # Start bit
-        wait(0, pin, 0)                           # type: ignore Stall until start bit is asserted
-        set(x, 7)                           [4]   # type: ignore Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
+        wait(0, pin, 0) .side(1)                  # type: ignore Stall until start bit is asserted
+        set(x, 7)       .side(0)            [4]   # type: ignore Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
 
         # 8 data bits
         label("bitloop")                          # type: ignore 
@@ -284,8 +308,12 @@ class DMX_RX:
     # everything?
 
     def IRQ_from_PIO(self, sm):
+        if (self._irqpin):
+            self._irqpin.high()
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
         self.irq_count += 1
+        if (self._irqpin):
+            self._irqpin.low()
 
 
 def test():
