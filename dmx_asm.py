@@ -16,17 +16,17 @@ def dmx_in():
     pull()
     # Look for the BREAK - minimum 90us (29 loops at 3us/loop + 5 instructions) low time
     label("break_reset") 
-    set(x, 29) 
+    set(x, 29)                    .side(0)                 # DEBUF - (Re-)starting the search for a BREAK 
     
     label("break_loop") 
     # Restart the (full) time if pin goes high during the (suspected) break - some sort of framing error
-    jmp(pin, "break_reset")       .side(2)       [1] 
+    jmp(pin, "break_reset")       .side(2)       [1]       # DEBUG - Found a BREAK
     jmp(x_dec, "break_loop")
-    
+
     # BREAK (low) minimum length exceeded - definitely a start of frame. 
 
     # Load the expected frame length
-    mov(y, osr)                   .side(0)
+    mov(y, osr)                   .side(0)                 # DEBUG - minimum BREAK exceeded - waiting for MAB
 
     # Stall until pin goes high for the Mark-After-Break (MAB) 
     wait(1, pin, 0) 
@@ -38,11 +38,12 @@ def dmx_in():
     # Stall until the Start bit (low) is detected
     wait(0, pin, 0)                              [2] 
     
-    # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 4 delay) until halfway through the first bit
+    # Load the bit counter (expecting 8 bits) then delay 6us (wait + set + 2 + 2 delay) until halfway through the first bit
     set(x, 7)                                    [2] 
+
     # Read 8 data bits - each loop iteration is 4us (in + jmp + 2 delay)
     label("bitloop") 
-    in_(pins, 1)                  .side(1) 
+    in_(pins, 1)                  .side(1)                 # DEBUG - reading a data byte
     jmp(x_dec, "bitloop")                        [2] 
 
     # What happened after the 8 data bits? If PIN is high, we got the STOP bit we needed 
@@ -61,13 +62,13 @@ def dmx_in():
 
     # STOP bit received when expected - pass the byte to the DMA handler: DMA will read a byte from +3, so no need to shift
     label("got_stopbit") 
-    push(noblock)                 .side(0) 
+    push(noblock)                 .side(0)                 # DEBUG - got a byte
 
     # If we've not received all the bytes we're expecting, go back and wait for some more
     jmp(y_dec, "get_next_byte")  
 
     # Full frame received - tell the processor (interrupt) and set up for the next one right now
-    irq(rel(0))                   .side(0)
+    irq(rel(0))
     jmp("break_reset")
 
 
