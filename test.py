@@ -8,17 +8,17 @@ def dmx_test():
     dmx_in  = DMX_RX(pin=28) # DMX data should be presented to GPIO28 (Pico pin 34)
     dmx_in.start()
 
-    last_irq = -1
+    last_frame = -1
 
     while True:
-        irq = dmx_in.irq_count
+        current_frame = dmx_in.frames_received
 
-        if irq != last_irq:
+        if current_frame != last_frame:
             print(f"Ch:{dmx_start_channel} Rx:", end="")
             for n in range(5):
                 print(f"{dmx_in.channels[dmx_start_channel+n]:3}  ", end="")
-            print(f" IRQ#:{irq}")
-            last_irq = irq
+            print(f" Frames Rxd:{current_frame}")
+            last_frame = current_frame
 
 def fire_test():
     # Initialise the firelight effect

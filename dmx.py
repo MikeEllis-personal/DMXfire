@@ -196,7 +196,7 @@ class DMX_RX:
                                     jmp_pin=self._pin,
                                     sideset_base=self._debugpin)
         self._sm.irq(handler=self.IRQ_from_PIO)
-        self.irq_count = 0
+        self.frames_received = 0
         
         self._dma = dma.DmaChannel(dmachannel)
         self._dma.NoReadIncr()
@@ -244,7 +244,7 @@ class DMX_RX:
     
     def IRQ_from_PIO(self, sm):
         self._dma.SetChannelData(0x50300023, addressof(self.channels), len(self.channels), True) # TODO Hard coded as PIO4 RX
-        self.irq_count += 1
+        self.frames_received += 1
 
 def test():
     from time import sleep_ms
@@ -275,7 +275,7 @@ def test():
     dmx_in  = DMX_RX(7)
     dmx_in.start()
 
-    last_irq_count = dmx_in.irq_count
+    last_irq_count = dmx_in.frames_received
     last_timer_count = dmx_out.timer_count
 
     dmx_test_chan = 512
@@ -285,7 +285,7 @@ def test():
         print(f"Ch:{dmx_test_chan} Tx:{dmx_out.channels[dmx_test_chan]:3} Rx:{dmx_in.channels[dmx_test_chan]:3}...", end="")
         sleep_ms(50)
 
-        irq_count   = dmx_in.irq_count
+        irq_count   = dmx_in.frames_received
         timer_count = dmx_out.timer_count
 
         print(f"{dmx_in.channels[dmx_test_chan]:3} {dmx_out.channels[dmx_test_chan] == dmx_in.channels[dmx_test_chan]:5} IRQ {irq_count - last_irq_count} Timer {timer_count - last_timer_count}")
