@@ -15,7 +15,9 @@ def dmx_in():
     # Read the expected frame length into the OSR - later loaded into the Y scratch register
     # This is only read once and re-used over and over and over again
     pull()
+
     # Look for the BREAK - minimum 90us (29 loops at 3us/loop + 5 instructions) low time
+    wrap_target()
     label("break_reset") 
     set(x, 29)                    .side(3)                 # DEBUG - Mark Before Break / Interframe spacing 
     
@@ -70,7 +72,8 @@ def dmx_in():
 
     # Full frame received - tell the processor (interrupt) and set up for the next one right now
     irq(rel(0))
-    jmp("break_reset")
+    #jmp("break_reset")
+    wrap()
 
 
 @staticmethod
