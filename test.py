@@ -27,6 +27,4 @@ def fire_test():
     while True:
         firelight.update(brightness = 255, 
                          fade       = 64,
-                         speed      = 255,
-                         blocks     = 16,
-                         dim        = 6)
+                         speed      = 64)
