@@ -13,7 +13,7 @@ class led_panel:
 
         # Initialise the LED array to all off
         self._strip = array.array("I", [0 for _ in range(leds)]) # GRB colour order
-        self._sm.put(self._strip, shift=8)
+        self._sm.put(self._strip, 8)
 
     def __del__(self):
         # TODO - tidy up the state machine
@@ -78,7 +78,7 @@ class led_panel:
                     strip[led] = (green << 16) + (red << 8) + blue
 
     @staticmethod
-    def fill(strip, brightness, r, g, b):
+    def fill(strip, brightness, red, green, blue):
         """ Fill the entire LED panel with a single colout
 
         Args:
@@ -89,19 +89,19 @@ class led_panel:
             b (int): The amount of blue in the range 0...255
         """
         # Merge the overall brightness into the RGB values
-        r = int(r * brightness/255)
-        g = int(g * brightness/255)
-        b = int(b * brightness/255)
+        red   = int(red   * brightness/255)
+        green = int(green * brightness/255)
+        blue  = int(blue  * brightness/255)
 
         # Set all of the LEDs to the calculated colour
-        value = (b & 0xff) + (r & 0xff) << 8 + (g & 0xff) << 16
+        value = (blue & 0xff) + ((red & 0xff) << 8) + ((green & 0xff) << 16)
         for led in range(len(strip)):
             strip[led] = value
 
-    def update(self, r=0, g=0, b=0, brightness=255, fade=255, speed=0, blocks=8, dim=3):
-        if r>0 or g>0 or b>0:
+    def update(self, red=0, green=0, blue=0, brightness=255, fade=255, speed=0, blocks=8, dim=3):
+        if red>0 or green>0 or blue>0:
             # If any of RGB are non-zero, create a simple colour wash as specified
-            led_panel.fill(self._strip, brightness, r, g, b)
+            led_panel.fill(self._strip, brightness, red, green, blue)
         else:
             # Create a fire-like effect
             led_panel.firelight(self._strip, brightness, fade, speed, blocks, dim)
