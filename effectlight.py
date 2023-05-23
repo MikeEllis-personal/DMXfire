@@ -39,6 +39,32 @@ def update_effect(panel):
 
     panel.update()
 
+def test_effect(f, r, g, b, e, s1, s2):
+    global brightness # Overall brightness of the effect
+    global red        # Base colour - RED
+    global green      # Base colour - GREEN
+    global blue       # Base colour - Blue
+    global effect     # Effect
+                      #    000 - 063: Solid colour - no speed control
+                      #    064 - 127: Beacon       - speed1 = rotation speed, speed2 = rotation width
+                      #    128 - 191: Strobe       - speed1 = on time,        speed2 = off time
+                      #    192 - 254: Firelight    - speed1 = brightening,    speed2 = fade
+    global speed1
+    global speed2
+
+    brightness = f
+    red        = r
+    green      = g
+    blue       = b
+    effect     = e
+    speed1     = s1
+    speed2     = s2
+
+    panel = led_panel(pin=27, leds=256)
+
+    for i in range(500):
+        update_effect(panel)
+
 def start_effect():
     # Initialise the DMX receiver
     dmx_start = 140
