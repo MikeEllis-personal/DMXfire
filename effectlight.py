@@ -17,25 +17,29 @@ speed2        = 0
 
 thread_running = True
 
-def run_effect_as_thread(panel):
+def run_effect_as_thread():
     # Start the firelight as a second thread
-    _thread.start_new_thread(run_effect, (panel))
+    print("Starting effect thread")
+    _thread.start_new_thread(run_effect, ())
 
-def run_effect(panel):
+def run_effect():
+    panel = led_panel(pin=27, width=32, height=8)
+
     while thread_running:
         update_effect(panel)
+        #print(f"E{brightness}", end="")
         #gc.collect()
     print("Thread exiting")
 
 def update_effect(panel):
-    if effect < 64:   # Solid colour
+    if effect < 64:     # Solid colour
         panel.fill(brightness, red, green, blue) 
-    elif effect < 128:
-        pass # Beacon
-    elif effect < 192:
-        pass # Strobe
-    else:
-        panel.firelight(brightness=brightness, red=red, green=green, blue=blue, speed=speed1, fade=speed2)
+    elif effect < 128:  # Beacon
+        panel.beacon(brightness, red, green, blue, speed1, speed2)
+    elif effect < 192:  # Strobe
+        panel.strobe(brightness, red, green, blue, speed1, speed2)
+    else:               # Firelight 
+        panel.firelight(brightness, red, green, blue, speed1, speed2)
 
     panel.update()
 
@@ -60,24 +64,25 @@ def test_effect(f, r, g, b, e, s1, s2):
     speed1     = s1
     speed2     = s2
 
-    panel = led_panel(pin=27, leds=256)
+    panel = led_panel(pin=27, width=32, height=8)
 
     for i in range(500):
         update_effect(panel)
 
-def start_effect():
-    # Initialise the DMX receiver
-    dmx_start = 140
+    brightness = 0
+    effect = 0
+    update_effect(panel)
 
+def start_effect(dmx_start):
+    print("DMX on pin 28")
+
+    # Initialise the DMX receiver
     dmx_in  = DMX_RX(pin=28) # DMX data should be presented to GPIO28 (Pico pin 34)
     dmx_in.start()
     last_frame = -1
 
-    # Initialise the LED panel
-    panel = led_panel(pin=27, leds=256)
-
     try:
-        run_effect_as_thread(panel)
+        run_effect_as_thread()
 
         while True:
             global brightness # Overall brightness of the effect
@@ -104,7 +109,9 @@ def start_effect():
 
             if current_frame != last_frame:
                 last_frame = current_frame
-                print(f"Frame {last_frame}  Fade:{brightness} R:{red} G:{green} B:{blue} Effect:{effect} Sp1:{speed1} Sp2:{speed2}")
-    except:
+            #    print(f"D{brightness}", end="")
+            #    print(f"Frame {last_frame}  Fade:{brightness} R:{red} G:{green} B:{blue} Effect:{effect} Sp1:{speed1} Sp2:{speed2}")
+    except Exception as e:
         global thread_running
-        thread_running = False    
+        thread_running = False 
+        raise e   
