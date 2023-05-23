@@ -88,7 +88,7 @@ class led_panel:
 
         # Set all of the LEDs to the calculated colour
         value = (B & 0xff) + ((R & 0xff) << 8) + ((G & 0xff) << 16)
-        for led in range(len(strip)):
+        for led in range(len(self._strip)):
             self._strip[led] = value
 
     def update(self):
