@@ -1,4 +1,5 @@
 import test
 
 if __name__ == "__main__":
-    test.test_both()
+    #test.test_both()
+    pass

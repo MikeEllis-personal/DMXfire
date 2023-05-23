@@ -1,5 +1,5 @@
 from dmx import DMX_RX
-from fire import led_panel
+from led_panel import led_panel
 import _thread
 import gc
 
