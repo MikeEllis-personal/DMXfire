@@ -55,7 +55,7 @@ class led_panel:
         # Occasionally brighten some blocks up
         if (randint(0,255) <= speed):
             leds_per_block = int(len(strip)/blocks)
-            for block in range(blocks - dim):
+            for block in range(blocks * 3 // 4):
                 start_led = randint(0,blocks-1) * leds_per_block
                 end_led   = start_led + leds_per_block
 
