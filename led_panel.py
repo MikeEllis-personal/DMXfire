@@ -101,11 +101,11 @@ class led_panel:
         value = (B & 0xff) + ((R & 0xff) << 8) + ((G & 0xff) << 16)
 
         # Increment the count
-        self._count += speed
-        if self._count > 255 * self._width:
-            self._count = 0
+        self._count += speed * 4
             
         offset = (self._count // 255) % self._width
+        if offset == 0:
+            self._count = 0
 
         # Convert the stripe width from 0-255 into 1-width
         stripe = ((stripe * self._width) // 255) +1
