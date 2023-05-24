@@ -23,18 +23,17 @@ A lot of the hard work is based upon information gleaned from
 
 Currently the base address is fixed as 140. This is the start of seven control channels:
 
-Channel 1: Brightness
-Channel 2: Red
-Channel 3: Green (amber-ness for firelight)
-Channel 4: Blue (white-ness for firelight)
-Channel 5: Mode:
-* 0-63: Solid colour
-* 64-127: Rotating beacon
-* 128-191: Strobe
-* 192-255: Firelight
-
-Channel 6: Speed 1
-Channel 7: Speed 2
+1. Brightness
+1. Red
+1. Green (amber-ness for firelight)
+1. Blue (white-ness for firelight)
+1. Mode:
+    * 0-63 (0-25%): Solid colour
+    * 64-127 (25-50%): Rotating beacon
+    * 128-191 (50-75%): Strobe
+    * 192-255 (75-100%): Firelight
+1. Speed 1
+1. Speed 2
 
 # dmx.py
 This class provides a simpe interface to a DMX universe for reading or writing using a PIO module.
