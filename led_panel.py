@@ -34,10 +34,11 @@ class led_panel:
 
     def firelight(self, brightness, red, green, blue, speed, fade):
         """ Create a fire-like effect on an LED panel """
-        fade_r         = 0.96  # How quickly the redness fades
-        fade_g         = 0.60  # How quickly the greenness fades
-        fade_b         = 0.36  # How quickly the blueness fades
-        blocks         = self._width // self._height * 2 
+        fade_r         = 224 * fade # How quickly the redness fades
+        fade_g         = 192 * fade # How quickly the greenness fades
+        fade_b         = 128 * fade # How quickly the blueness fades
+        leds_per_block = 64
+        blocks         = (self._width * self._height) // leds_per_block
 
         strip = self._strip
 
@@ -49,30 +50,36 @@ class led_panel:
             B = (strip[led] >>  0) & 0xff
             
             # Fade it a little bit
-            R = int(R * fade_r * fade / 255)
-            G = int(G * fade_g * fade / 255)
-            B = int(B * fade_b * fade / 255)
+            R = (R * fade_r) >> 16 
+            G = (G * fade_g) >> 16
+            B = (B * fade_b) >> 16
+
+            # Write the colour back to the strip
             strip[led] = (B & 0xff) + ((R & 0xff) << 8) + ((G & 0xff) << 16)
 
         # Occasionally brighten some blocks up
         if (randint(0,255) <= speed):
-            leds_per_block = int(len(strip)/blocks)
+
+            # Only brighten about three-quarters of the blocks each time
             for block in range(blocks * 3 // 4):
+
+                # Pick a block at random
                 start_led = randint(0,blocks-1) * leds_per_block
                 end_led   = start_led + leds_per_block
 
-                # Set a random intensity and colour for each LED in the block
+                # Pick a random intensity and colour for each block
+                R = randint(red//8,               red)              # Must be at least half of Red
+                G = randint(min(R//16, green//4), min(R//8, green)) # Can't be more than half of R
+                B = randint(min(G//16, blue//4),  min(G//8, blue))  # Can't be more than an eighth of G
+
+                # Apply the master brightness factor
+                R = (R * brightness) >> 8
+                G = (G * brightness) >> 8
+                B = (B * brightness) >> 8
+
                 for led in range(start_led, end_led):
-                    R = randint(red//8,              red)              # Must be at least half of Red
-                    G = randint(min(R//8, green),    min(R//2, green)) # Can't be more than half of R
-                    B = randint(min(G//16, blue),    min(G//8, blue))  # Can't be more than an eighth of G
-
-                    # Apply the master brightness factor
-                    R = int(R * brightness / 255)
-                    G = int(G * brightness / 255)
-                    B = int(B * brightness / 255)
                     strip[led] = (B & 0xff) + ((R & 0xff) << 8) + ((G & 0xff) << 16)
-
+                    
     def fill(self, brightness, red, green, blue):
         """ Fill the entire LED panel with a single colour
 
@@ -141,4 +148,4 @@ class led_panel:
 
     def update(self):
         self._sm.put(self._strip, 8)
-        sleep_ms(20)
+        sleep_ms(10) # Make sure there is some dead time before re-triggering the PIO

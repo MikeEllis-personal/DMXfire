@@ -29,17 +29,34 @@ def dmx_test():
             print(f" Frames Rxd:{current_frame}")
             last_frame = current_frame
 
+def pin_test():
+    from machine import Pin
+
+    pin = Pin(27, Pin.OUT)
+
+    for i in range(1000):
+        pin.value(1)
+        pin.value(0)
+
 def fire_test():
     # Initialise the firelight effect
-    firelight = led_panel(pin=27, leds=256)
+    firelight = led_panel(pin=27, width=32, height=32)
+    print(firelight)
 
-    while True:
-        firelight.update(brightness = 255, fade = 64, speed = 64)
+    for i in range(100):
+        firelight.firelight(brightness=255, 
+                            red=255, green=64, blue=10, 
+                            speed=128, fade=255)
+        firelight.update()
+
+    firelight.fill(0,0,0,0)
+    firelight.update()
+    print("Finished")
 
 def firelight():
     # Initialise the firelight effect
-    firelight = led_panel(pin=27, leds=256)
-
+    firelight = led_panel(pin=27, width=32, height=32)
+    
     while thread_running:
         print(f"Perform  fader:{brightness}  R:{red} G:{green} B:{blue}")
         firelight.update(brightness = brightness, red = red, green=green, blue=blue, fade=fade, speed=speed)
